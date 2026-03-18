@@ -209,6 +209,58 @@ async def get_funnel_analysis():
         raise HTTPException(status_code=500, detail="漏斗分析失败")
 
 
+@router.get("/export/csv")
+async def export_csv():
+    """导出数据为 CSV 格式.
+
+    Returns:
+        StreamingResponse: CSV 文件下载
+    """
+    try:
+        import io
+        from fastapi.responses import StreamingResponse
+
+        df = analysis_service._load_data()
+        output = io.StringIO()
+        df.to_csv(output, index=False, encoding='utf-8-sig')
+        output.seek(0)
+
+        return StreamingResponse(
+            io.BytesIO(output.getvalue().encode('utf-8-sig')),
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=marketing_data.csv"},
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"导出CSV失败: {str(e)}")
+
+
+@router.get("/export/excel")
+async def export_excel():
+    """导出数据为 Excel 格式.
+
+    Returns:
+        StreamingResponse: Excel 文件下载
+    """
+    try:
+        import io
+        from fastapi.responses import StreamingResponse
+
+        df = analysis_service._load_data()
+        output = io.BytesIO()
+        df.to_excel(output, index=False, engine='openpyxl')
+        output.seek(0)
+
+        return StreamingResponse(
+            output,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": "attachment; filename=marketing_data.xlsx"},
+        )
+    except ImportError:
+        raise HTTPException(status_code=500, detail="需要安装 openpyxl: pip install openpyxl")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"导出Excel失败: {str(e)}")
+
+
 # ========== PDF 报告 ==========
 
 @router.get("/report/pdf")

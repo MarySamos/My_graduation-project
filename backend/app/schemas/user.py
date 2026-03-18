@@ -60,10 +60,23 @@ class UserResponse(UserBase):
 class Token(BaseModel):
     """Token 响应模型"""
     access_token: str
+    refresh_token: Optional[str] = None
     token_type: str = "bearer"
+    expires_in: Optional[int] = None  # 过期时间（秒）
     user: UserResponse
+
+
+class RefreshTokenRequest(BaseModel):
+    """刷新令牌请求模型"""
+    refresh_token: str
 
 
 class TokenData(BaseModel):
     """Token 数据模型（用于解析 JWT）"""
     employee_id: Optional[str] = None
+
+
+class PasswordUpdateRequest(BaseModel):
+    """密码更新请求模型"""
+    old_password: str = Field(..., description="旧密码")
+    new_password: str = Field(..., min_length=6, description="新密码（至少6位）")

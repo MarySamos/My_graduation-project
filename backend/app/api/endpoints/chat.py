@@ -1,6 +1,6 @@
 """Chat API Endpoints.
 
-处理智能对话请求（支持会话记忆）
+处理智能对话请求（支持会话记忆 + RAG 知识来源）
 """
 import traceback
 
@@ -20,17 +20,21 @@ _DEFAULT_INTENT = "unknown"
 
 @router.post("/send", response_model=ChatResponse)
 async def chat(request: ChatRequest):
-    """发送消息给智能体（支持会话记忆）.
+    """发送消息给智能体（支持会话记忆 + RAG 知识来源）.
 
     工作流程：
     1. 初始化状态
     2. 运行 LangGraph 工作流（使用 checkpoint 保存会话状态）
-    3. 提取并返回结果
+    3. 提取并返回结果（包括 RAG 知识来源）
 
     Checkpoint 支持：
     - 如果提供 session_id，会从之前的会话中恢复状态
     - 同一个 session_id 的对话会保持上下文记忆
     - 如果不提供 session_id，将作为新会话处理
+
+    RAG 支持：
+    - 当意图为 "rag" 时，会检索知识库并返回知识来源
+    - sources 字段包含检索到的相关文档片段
 
     请求示例：
     ```json
@@ -58,12 +62,18 @@ async def chat(request: ChatRequest):
 
         final_state = agent_app.invoke(initial_state, config=config)
 
+        # 提取 RAG 知识来源
+        rag_sources = final_state.get("rag_sources")
+        has_context = final_state.get("rag_context") is not None
+
         return ChatResponse(
             answer=final_state.get("final_answer", _DEFAULT_ANSWER),
             chart=final_state.get("chart_html"),
             sql=final_state.get("generated_sql"),
             intent=final_state.get("intent", _DEFAULT_INTENT),
             session_id=session_id,
+            sources=rag_sources,
+            has_context=has_context,
         )
 
     except Exception:
@@ -93,4 +103,3 @@ async def clear_session(session_id: str):
     except Exception:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail="清除会话失败")
-

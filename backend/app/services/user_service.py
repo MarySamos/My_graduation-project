@@ -1,11 +1,13 @@
 """用户认证服务.
 
 处理用户注册、登录、JWT 生成和验证
+
+使用 bcrypt 进行密码哈希，JWT 进行身份认证
 """
-import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+from bcrypt import checkpw, gensalt, hashpw
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
@@ -21,20 +23,45 @@ _ROLE_ANALYST = "analyst"
 _DEFAULT_DEPARTMENT = None
 _DEFAULT_ROLE = _ROLE_USER
 
+# bcrypt 配置
+_BCRYPT_ROUNDS = 12  # 哈希轮数，每增加1轮计算时间翻倍，12是推荐值
+
 
 # ========== Password Functions ==========
 
 def hash_password(password: str) -> str:
-    """密码哈希函数（SHA-256）.
+    """使用 bcrypt 哈希密码.
 
-    Note: 演示用途，生产环境建议使用 bcrypt
+    Args:
+        password: 明文密码
+
+    Returns:
+        哈希后的密码字符串
+
+    Note:
+        - 自动生成盐值并包含在哈希结果中
+        - 使用 12 轮哈希，平衡安全性和性能
+        - 每次哈希相同密码结果不同（因为盐值随机）
     """
-    return hashlib.sha256(password.encode()).hexdigest()
+    pwd_bytes = password.encode('utf-8')
+    salt = gensalt(rounds=_BCRYPT_ROUNDS)
+    hashed = hashpw(pwd_bytes, salt)
+    return hashed.decode('utf-8')
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """验证密码"""
-    return hash_password(plain_password) == hashed_password
+    """验证密码.
+
+    Args:
+        plain_password: 明文密码
+        hashed_password: 数据库中存储的哈希密码
+
+    Returns:
+        密码是否匹配
+    """
+    pwd_bytes = plain_password.encode('utf-8')
+    hash_bytes = hashed_password.encode('utf-8')
+    return checkpw(pwd_bytes, hash_bytes)
 
 
 # ========== JWT Functions ==========
@@ -76,6 +103,21 @@ def verify_token(token: str) -> Optional[str]:
         return employee_id if employee_id else None
     except JWTError:
         return None
+
+
+def create_refresh_token(data: dict) -> str:
+    """创建 JWT 刷新令牌（有效期更长）.
+
+    Args:
+        data: 要编码的数据
+
+    Returns:
+        JWT refresh token 字符串
+    """
+    to_encode = data.copy()
+    expire = datetime.now(timezone.utc) + timedelta(days=7)  # 7天有效期
+    to_encode.update({"exp": expire, "type": "refresh"})
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
 # ========== User Functions ==========
@@ -125,7 +167,14 @@ def create_user(
 
     Returns:
         创建的 User 对象
+        
+    Note:
+        技术部用户自动设置为管理员角色
     """
+    # 技术部自动成为管理员
+    if department and ('技术' in department or 'IT' in department.upper() or '技术部' in department):
+        role = _ROLE_ADMIN
+    
     hashed_pwd = hash_password(password)
 
     db_user = User(
@@ -142,6 +191,23 @@ def create_user(
     db.refresh(db_user)
 
     return db_user
+
+
+def update_user_password(db: Session, user: User, new_password: str) -> User:
+    """更新用户密码.
+
+    Args:
+        db: 数据库会话
+        user: 用户对象
+        new_password: 新密码（明文）
+
+    Returns:
+        更新后的 User 对象
+    """
+    user.hashed_password = hash_password(new_password)
+    db.commit()
+    db.refresh(user)
+    return user
 
 
 def get_user_by_employee_id(db: Session, employee_id: str) -> Optional[User]:

@@ -9,6 +9,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+
 from pgvector.sqlalchemy import Vector
 
 from app.core.database import Base
@@ -35,7 +36,7 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False, comment="密码哈希")
 
     # Role and status
-    role = Column(String(50), nullable=False, default="user", comment="角色: user/admin/analyst")
+    role = Column(String(50), nullable=False, default="user", comment="角色: user/admin/alist")
     is_active = Column(Boolean, default=True, comment="是否激活")
 
     # Timestamps
@@ -53,7 +54,7 @@ class MarketingData(Base):
 
     兼容两个版本的数据集：
     - 旧版 (bank.csv): 包含 balance, day, deposit 字段
-    - 新版 (bank-additional-full.csv): 包含经济指标、day_of_week, y 字段
+    - 新版 (bank-additional-full.csv): 包含经济指标、day_of_week、y 字段
     """
     __tablename__ = "marketing_data"
 
@@ -119,8 +120,8 @@ class KnowledgeDoc(Base):
     file_path = Column(String(500), comment="文件路径")
     file_type = Column(String(50), comment="文件类型 (pdf/txt/md)")
 
-    # pgvector 向量嵌入（1536维 = OpenAI text-embedding-ada-002）
-    embedding = Column(Vector(1536), nullable=True, comment="文档向量嵌入 (pgvector)")
+    # pgvector 向量嵌入（1024维 = 智谱AI embedding-2）
+    embedding = Column(Vector(1024), nullable=True, comment="文档向量嵌入 (pgvector)")
     meta_data = Column(JSON, comment="文档元数据")
 
     # Foreign keys
@@ -132,14 +133,6 @@ class KnowledgeDoc(Base):
 
     # Relationships
     uploader = relationship("User")
-
-    # 索引
-    __table_args__ = (
-        Index('ix_knowledge_embedding_hnsw', 'embedding',
-              postgresql_using='hnsw',
-              postgresql_with={'m': 16, 'ef_construction': 64},
-              postgresql_ops={'embedding': 'vector_cosine_ops'}),
-    )
 
 
 # ========== Data Table Metadata Model ==========

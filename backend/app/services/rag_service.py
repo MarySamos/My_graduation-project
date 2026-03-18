@@ -1,8 +1,8 @@
 """
-RAG 知识问答服务（增强版）
+RAG 知识问答服务（增强版 - 支持智谱AI Embedding）
 
 基于 pgvector 向量检索 + LLM 生成的 RAG 链路：
-1. 用户问题 → OpenAI Embedding 向量化
+1. 用户问题 → 智谱AI Embedding-3 向量化
 2. pgvector 余弦距离检索 Top-K 知识文档
 3. 检索结果作为上下文 → LLM 生成回答
 
@@ -13,11 +13,13 @@ RAG 知识问答服务（增强版）
 """
 import json
 import logging
+import os
 from typing import Dict, Any, List, Optional
 
+import requests
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
@@ -25,24 +27,71 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+# 智谱AI Embedding API配置
+_ZHIPU_EMBEDDING_API = "https://open.bigmodel.cn/api/paas/v4/embeddings"
+_ZHIPU_EMBEDDING_MODEL = "embedding-2"  # embedding-2 (1024维) 或 embedding-3 (2048维)
+_EMBEDDING_DIM = 1024
+
+
+class ZhipuEmbeddings:
+    """智谱AI Embedding 封装"""
+
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+        self.headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+
+    def embed_query(self, text: str) -> List[float]:
+        """将文本向量化"""
+        try:
+            response = requests.post(
+                _ZHIPU_EMBEDDING_API,
+                headers=self.headers,
+                json={
+                    "model": _ZHIPU_EMBEDDING_MODEL,
+                    "input": text
+                },
+                timeout=30
+            )
+            response.raise_for_status()
+            result = response.json()
+
+            # 智谱AI返回格式: {"data": [{"embedding": [...]}]}
+            if "data" in result and len(result["data"]) > 0:
+                return result["data"][0]["embedding"]
+            else:
+                logger.error(f"智谱AI Embedding 响应格式错误: {result}")
+                return [0.0] * _EMBEDDING_DIM
+
+        except Exception as e:
+            logger.error(f"智谱AI Embedding 调用失败: {str(e)}")
+            return [0.0] * _EMBEDDING_DIM
+
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        """批量向量化"""
+        embeddings = []
+        for text in texts:
+            embeddings.append(self.embed_query(text))
+        return embeddings
+
 
 class RAGService:
-    """RAG 知识问答服务（增强版）"""
+    """RAG 知识问答服务（增强版 - 智谱AI版）"""
 
     def __init__(self):
         self.engine = create_engine(settings.DATABASE_URL)
         self.Session = sessionmaker(bind=self.engine)
 
-        # OpenAI Embedding 模型
-        self.embeddings = OpenAIEmbeddings(
-            openai_api_key=settings.OPENAI_API_KEY,
-            openai_api_base=settings.OPENAI_API_BASE
-        )
+        # 使用智谱AI的Embedding
+        api_key = settings.ZHIPU_API_KEY or settings.OPENAI_API_KEY
+        self.embeddings = ZhipuEmbeddings(api_key)
 
-        # LLM（低温度，保证回答准确性）
+        # LLM（使用智谱AI）
         self.llm = ChatOpenAI(
-            openai_api_key=settings.OPENAI_API_KEY,
-            openai_api_base=settings.OPENAI_API_BASE,
+            openai_api_key=api_key,
+            openai_api_base=settings.LLM_API_BASE or settings.OPENAI_API_BASE,
             model=settings.LLM_MODEL,
             temperature=0.1
         )
@@ -55,7 +104,7 @@ class RAGService:
             query: 用户问题文本
 
         Returns:
-            1536 维向量
+            1024维向量（智谱AI embedding-3）
         """
         return self.embeddings.embed_query(query)
 

@@ -7,8 +7,8 @@ from typing import Optional
 
 from pydantic_settings import BaseSettings
 
-# Root directory for .env file location (backend/app/core -> backend/app -> backend -> project root)
-_ROOT_DIR = Path(__file__).parent.parent.parent.parent
+# Root directory for .env file location (backend/app/core -> backend/app -> backend)
+_ROOT_DIR = Path(__file__).parent.parent.parent
 
 # JWT default values
 _ALGORITHM_DEFAULT = "HS256"

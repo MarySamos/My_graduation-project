@@ -87,3 +87,13 @@ scripts/*.js
 *.tmp
 *.temp
 *.bak
+
+# 测试和初始化脚本
+backend/check_tables.py
+backend/init_db.py
+backend/scripts/test_*.py
+backend/test_*.py
+backend/winutils/
+
+# Claude settings
+.claude/settings.local.json

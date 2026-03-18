@@ -85,6 +85,11 @@ class StreamEvent:
         """完成事件"""
         return f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
 
+    @staticmethod
+    def sources(sources: list) -> str:
+        """RAG知识来源事件"""
+        return f"data: {json.dumps({'type': 'sources', 'sources': sources}, ensure_ascii=False)}\n\n"
+
 
 # ========== 增强的流式响应生成器 ==========
 async def stream_chat_response_enhanced(
@@ -195,6 +200,13 @@ async def stream_chat_response_enhanced(
                     }, ensure_ascii=False) + "\n\n"
                     yield StreamEvent.thinking("正在生成回答...", "generate")
 
+                # RAG 知识检索节点
+                elif node_name == "knowledge_search":
+                    sources = node_output.get("rag_sources", [])
+                    if sources:
+                        yield StreamEvent.sources(sources)
+                    yield StreamEvent.thinking("正在生成回答...", "generate")
+
                 # 可视化节点
                 elif node_name == "visualization":
                     chart_html = node_output.get("chart_html", "")
@@ -214,7 +226,7 @@ async def stream_chat_response_enhanced(
                         await asyncio.sleep(0.01)  # 打字效果
 
                 # 错误处理
-                elif "error_message" in node_output:
+                elif node_output and "error_message" in node_output:
                     yield StreamEvent.error(node_output["error_message"])
 
         yield StreamEvent.done()
