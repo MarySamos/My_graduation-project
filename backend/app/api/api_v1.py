@@ -8,7 +8,6 @@ from app.api.endpoints import (
     admin,
     analysis,
     auth,
-    bigdata,
     chat,
     chat_stream,
     dashboard,
@@ -31,5 +30,4 @@ api_router.include_router(knowledge.router, prefix="/knowledge", tags=["知识�
 api_router.include_router(predict.router, prefix="/predict", tags=["ML预测"])
 api_router.include_router(analysis.router, prefix="/analysis", tags=["数据分析"])
 api_router.include_router(logs.router, prefix="/logs", tags=["操作日志"])
-api_router.include_router(bigdata.router, prefix="/bigdata", tags=["大数据实验室"])
 api_router.include_router(admin.router, prefix="/admin", tags=["管理员"])

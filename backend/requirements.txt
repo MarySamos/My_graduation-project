@@ -26,6 +26,3 @@ langchain-openai>=0.0.5
 
 # Utilities
 python-dotenv>=1.0.0
-
-# Spark (optional - for big data processing)
-pyspark>=3.5.0

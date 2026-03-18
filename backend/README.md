@@ -4,7 +4,7 @@
 
 ## 项目简介
 
-基于 FastAPI + LangGraph 的智能银行营销数据分析系统，提供数据查询、分析、预测和大数据处理能力。
+基于 FastAPI + LangGraph 的智能银行营销数据分析系统，提供数据查询、分析、预测能力。
 
 ## 主要功能
 
@@ -13,7 +13,6 @@
 - **数据管理**: 数据上传、查询、导出
 - **数据分析**: 聚类分析、客户细分
 - **预测服务**: 机器学习模型预测
-- **大数据处理**: 基于 Spark 的大数据分析
 - **仪表板**: KPI 和可视化数据
 
 ## 技术栈
@@ -22,7 +21,6 @@
 - **AI**: LangGraph, LangChain, OpenAI
 - **数据库**: SQLAlchemy (支持 SQLite/PostgreSQL/MySQL)
 - **机器学习**: Scikit-learn
-- **大数据**: Apache Spark
 - **数据处理**: Pandas, NumPy
 
 ## 安装
@@ -61,9 +59,6 @@ ACCESS_TOKEN_EXPIRE_MINUTES=30
 
 # OpenAI
 OPENAI_API_KEY=your-openai-api-key
-
-# Spark (optional)
-SPARK_HOME=path-to-spark
 ```
 
 ## 运行
@@ -86,7 +81,6 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 - `GET /api/v1/dashboard` - 仪表板数据
 - `POST /api/v1/predict` - 预测分析
 - `POST /api/v1/analysis/clustering` - 聚类分析
-- `/api/v1/bigdata/*` - 大数据处理
 
 ## 项目结构
 
