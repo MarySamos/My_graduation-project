@@ -71,3 +71,20 @@ class VisualizationType(str, Enum):
     HEATMAP = "heatmap"
     RADAR = "radar"
     BOX_PLOT = "box_plot"
+
+
+class RouteType(str, Enum):
+    """路由类型"""
+    CHAT = "chat"            # 闲聊
+    QUERY = "query"          # 数据查询
+    FOLLOWUP = "followup"    # 追问
+    CORRECTION = "correction"  # 修正
+
+
+class FollowupType(str, Enum):
+    """追问类型"""
+    EXPLAIN = "explain"      # 解释原因
+    DETAIL = "detail"        # 展开细节
+    DRILLDOWN = "drilldown"  # 下钻细分
+    COMPARE = "compare"      # 对比
+    TREND = "trend"          # 趋势
