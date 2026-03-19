@@ -4,7 +4,7 @@
       <div>
         <p class="page-breadcrumb">数据管理 / 数据导入</p>
         <h1 class="page-title">导入数据</h1>
-        <p class="page-subtitle">上传 CSV 或 Excel 文件</p>
+        <p class="page-subtitle">上传 CSV 文件</p>
       </div>
     </header>
 
@@ -15,9 +15,9 @@
            @drop.prevent="handleDrop">
         <div class="upload-icon">📁</div>
         <h3>拖放文件到这里</h3>
-        <p>或点击选择文件</p>
-        <input type="file" ref="fileInput" @change="handleFileSelect" accept=".csv,.xlsx,.xls" class="hidden" />
-        <button class="btn-primary" @click="$refs.fileInput.click()">选择文件</button>
+        <p>仅支持 CSV 文件，或点击选择文件</p>
+        <input type="file" ref="fileInput" @change="handleFileSelect" accept=".csv" class="hidden" />
+        <button class="btn-primary" @click="$refs.fileInput.click()">选择 CSV</button>
       </div>
 
       <div v-if="selectedFile" class="file-info">

@@ -69,19 +69,19 @@
         </button>
       </div>
 
-      <div v-if="result" class="result-card animate-in">
-        <h3>预测结果</h3>
-        <div class="result-score">
-          <div class="score-label">转化概率</div>
-          <div class="score-value">{{ (result.probability * 100).toFixed(1) }}%</div>
+        <div v-if="result" class="result-card animate-in">
+          <h3>预测结果</h3>
+          <div class="result-score">
+            <div class="score-label">转化概率</div>
+          <div class="score-value">{{ result.probability.toFixed(1) }}%</div>
           <div class="score-bar">
-            <div class="score-fill" :style="{ width: (result.probability * 100) + '%' }"></div>
+            <div class="score-fill" :style="{ width: result.probability + '%' }"></div>
           </div>
         </div>
         <div class="result-prediction">
           <span>预测结果：</span>
-          <strong :class="result.prediction === 'yes' ? 'positive' : 'negative'">
-            {{ result.prediction === 'yes' ? '可能转化' : '不太可能转化' }}
+          <strong :class="result.prediction === 1 ? 'positive' : 'negative'">
+            {{ result.prediction === 1 ? '可能转化' : '不太可能转化' }}
           </strong>
         </div>
       </div>
@@ -109,7 +109,25 @@ const predict = async () => {
   loading.value = true
   result.value = null
   try {
-    const response = await api.post('/api/v1/predict', form)
+    const payload = {
+      age: Number(form.age) || 35,
+      job: form.job || 'management',
+      marital: form.marital || 'married',
+      education: form.education || 'secondary',
+      default_credit: 'no',
+      balance: Number(form.balance) || 1000,
+      housing: form.housing || 'no',
+      loan: 'no',
+      contact: 'cellular',
+      day: 15,
+      month: 'may',
+      duration: 300,
+      campaign: 2,
+      pdays: -1,
+      previous: 0,
+      poutcome: 'unknown'
+    }
+    const response = await api.post('/api/v1/predict/single', payload)
     result.value = response.data
   } catch (error) {
     console.error('Predict failed:', error)

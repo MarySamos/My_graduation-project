@@ -67,10 +67,13 @@ const uploadFile = async () => {
   uploadStatus.value = { type: 'info', message: '正在上传并处理...' }
 
   try {
+    const title = selectedFile.value.name.replace(/\.[^.]+$/, '')
     const response = await api.post('/api/v1/knowledge/upload', formData, {
+      params: { title },
       headers: { 'Content-Type': 'multipart/form-data' }
     })
-    uploadStatus.value = { type: 'success', message: `上传成功！文档 ID: ${response.data.doc_id}` }
+    const docId = response.data?.document?.id
+    uploadStatus.value = { type: 'success', message: `上传成功！文档 ID: ${docId ?? '-'}` }
     selectedFile.value = null
   } catch (error) {
     uploadStatus.value = { type: 'error', message: '上传失败：' + (error.response?.data?.detail || error.message) }

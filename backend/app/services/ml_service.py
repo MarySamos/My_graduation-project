@@ -41,6 +41,9 @@ class MLService:
             if model_path.exists():
                 with open(model_path, "rb") as f:
                     self.model = pickle.load(f)
+                # 在 Windows 环境下，模型并行推理可能触发权限问题，统一降为单线程。
+                if hasattr(self.model, "n_jobs"):
+                    self.model.n_jobs = 1
                 print(f"[OK] Model loaded successfully: {model_path}")
             else:
                 print(f"[WARNING] Model file not found: {model_path}")
@@ -85,8 +88,15 @@ class MLService:
 
             df = df.reindex(columns=self.feature_names, fill_value=0)
 
-            probability = self.model.predict_proba(df)[0][1]
-            prediction = self.model.predict(df)[0]
+            try:
+                probability = self.model.predict_proba(df)[0][1]
+                prediction = self.model.predict(df)[0]
+            except PermissionError:
+                # 兜底：动态改为单线程后重试一次，避免线程池初始化失败。
+                if hasattr(self.model, "n_jobs"):
+                    self.model.n_jobs = 1
+                probability = self.model.predict_proba(df)[0][1]
+                prediction = self.model.predict(df)[0]
 
             confidence = self._get_confidence_level(probability)
 

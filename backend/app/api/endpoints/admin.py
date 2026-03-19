@@ -170,6 +170,37 @@ async def update_user_status(
         raise HTTPException(status_code=500, detail="修改用户状态失败")
 
 
+@router.delete("/users/{user_id}")
+async def delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """删除用户（管理员专用）.
+
+    不允许管理员删除自己
+    """
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="不能删除自己的账号")
+
+    try:
+        result = admin_service.delete_user(db, user_id=user_id)
+        log_service.log_action(
+            db=db,
+            user_id=current_user.id,
+            action="admin_delete_user",
+            resource="user",
+            details=f"删除用户ID={user_id}",
+            status="success",
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error("删除用户失败: %s", str(e))
+        raise HTTPException(status_code=500, detail="删除用户失败")
+
+
 @router.get("/dashboard", response_model=AdminDashboardResponse)
 async def get_admin_dashboard(
     db: Session = Depends(get_db),

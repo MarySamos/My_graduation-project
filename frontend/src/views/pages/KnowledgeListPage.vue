@@ -19,14 +19,15 @@
       <div v-else class="docs-list">
         <div v-for="doc in docs" :key="doc.id" class="doc-card animate-in">
           <div class="doc-icon">📄</div>
-          <div class="doc-info">
-            <div class="doc-title">{{ doc.title }}</div>
-            <div class="doc-meta">
-              <span>{{ doc.chunk_count }} 个片段</span>
-              <span>相似度 {{ (doc.similarity * 100).toFixed(0) }}%</span>
+            <div class="doc-info">
+              <div class="doc-title">{{ doc.title }}</div>
+              <div class="doc-meta">
+                <span>{{ (doc.meta_data && doc.meta_data.chunk_count) || 1 }} 个片段</span>
+                <span>{{ (doc.file_type || '').toUpperCase() }}</span>
+                <span>{{ doc.has_embedding ? '已向量化' : '未向量化' }}</span>
+              </div>
             </div>
-          </div>
-          <button class="doc-delete" @click="deleteDoc(doc.id)">删除</button>
+            <button class="doc-delete" @click="deleteDoc(doc.id)">删除</button>
         </div>
       </div>
     </section>
@@ -43,8 +44,8 @@ const docs = ref([])
 const loadData = async () => {
   loading.value = true
   try {
-    const response = await api.get('/api/v1/knowledge/docs')
-    docs.value = response.data.docs || []
+    const response = await api.get('/api/v1/knowledge/list')
+    docs.value = response.data.data || []
   } catch (error) {
     console.error('Failed to load docs:', error)
   } finally {
@@ -55,7 +56,7 @@ const loadData = async () => {
 const deleteDoc = async (id) => {
   if (!confirm('确定要删除这个文档吗？')) return
   try {
-    await api.delete(`/api/v1/knowledge/docs/${id}`)
+    await api.delete(`/api/v1/knowledge/${id}`)
     loadData()
   } catch (error) {
     console.error('Failed to delete doc:', error)

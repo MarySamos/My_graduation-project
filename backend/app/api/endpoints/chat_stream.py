@@ -9,7 +9,6 @@
 """
 import json
 import traceback
-import asyncio
 from collections.abc import AsyncGenerator
 from typing import Dict, Any, List
 
@@ -17,9 +16,9 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from app.graphs.state import create_initial_state
-from app.graphs.workflow import agent_app
 from app.graphs.query_rewrite import rewrite_query, detect_query_type, expand_query
+from app.graphs.stream_event import StreamEvent
+from app.graphs.two_stage_workflow import two_stage_workflow
 from app.schemas.chat import ChatStreamRequest, ChatResponse
 
 router = APIRouter()
@@ -36,205 +35,62 @@ _DEFAULT_SESSION_SUFFIX = "_default"
 _DEFAULT_USER_ID = "default"
 
 
-# ========== 流式事件类 ==========
-class StreamEvent:
-    """流式事件构建器"""
-
-    @staticmethod
-    def intent(intent: str, confidence: float = 0.0) -> str:
-        """意图识别事件"""
-        return f"data: {json.dumps({'type': 'intent', 'intent': intent, 'confidence': confidence}, ensure_ascii=False)}\n\n"
-
-    @staticmethod
-    def thinking(message: str = "", step: str = "") -> str:
-        """思考状态事件"""
-        return f"data: {json.dumps({'type': 'thinking', 'message': message, 'step': step}, ensure_ascii=False)}\n\n"
-
-    @staticmethod
-    def rewritten(original: str, rewritten: str, reason: str) -> str:
-        """查询重写事件"""
-        return f"data: {json.dumps({'type': 'rewritten', 'original': original, 'rewritten': rewritten, 'reason': reason}, ensure_ascii=False)}\n\n"
-
-    @staticmethod
-    def sql(sql: str, corrected: bool = False) -> str:
-        """SQL 事件"""
-        return f"data: {json.dumps({'type': 'sql', 'sql': sql, 'corrected': corrected}, ensure_ascii=False)}\n\n"
-
-    @staticmethod
-    def query_result(row_count: int, preview: List[Dict] = None) -> str:
-        """查询结果事件"""
-        return f"data: {json.dumps({'type': 'query_result', 'row_count': row_count, 'preview': preview or []}, ensure_ascii=False)}\n\n"
-
-    @staticmethod
-    def text(content: str) -> str:
-        """文本内容事件"""
-        return f"data: {json.dumps({'type': 'text', 'content': content}, ensure_ascii=False)}\n\n"
-
-    @staticmethod
-    def answer(content: str) -> str:
-        """最终回答事件"""
-        return f"data: {json.dumps({'type': 'answer', 'content': content}, ensure_ascii=False)}\n\n"
-
-    @staticmethod
-    def error(message: str) -> str:
-        """错误事件"""
-        return f"data: {json.dumps({'type': 'error', 'message': message}, ensure_ascii=False)}\n\n"
-
-    @staticmethod
-    def done() -> str:
-        """完成事件"""
-        return f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
-
-    @staticmethod
-    def sources(sources: list) -> str:
-        """RAG知识来源事件"""
-        return f"data: {json.dumps({'type': 'sources', 'sources': sources}, ensure_ascii=False)}\n\n"
-
-
 # ========== 增强的流式响应生成器 ==========
+async def stream_chat_response_two_stage(
+    message: str,
+    session_id: str,
+    user_id: str = _DEFAULT_USER_ID,
+    chat_history: List[Dict] = None,
+) -> AsyncGenerator[str, None]:
+    """两阶段工作流流式生成聊天响应（使用两阶段工作流）.
+
+    Args:
+        message: 用户消息
+        session_id: 会话ID
+        user_id: 用户ID
+        chat_history: 对话历史（当前版本未使用，保留兼容）
+
+    Yields:
+        Server-Sent Events 格式的数据
+    """
+    # 直接使用两阶段工作流
+    async for event in two_stage_workflow.process(
+        message=message,
+        session_id=session_id,
+        user_id=user_id
+    ):
+        yield event
+
+
 async def stream_chat_response_enhanced(
     message: str,
     session_id: str,
     user_id: str = _DEFAULT_USER_ID,
     chat_history: List[Dict] = None,
 ) -> AsyncGenerator[str, None]:
-    """增强的流式生成聊天响应.
+    """增强的流式生成聊天响应（使用两阶段工作流）.
 
     增强功能：
-    - 查询重写
-    - 查询类型检测
+    - 两阶段路由（闲聊/查询/追问）
+    - 语气适配
     - 更丰富的流式事件
 
     Args:
         message: 用户消息
         session_id: 会话ID
         user_id: 用户ID
-        chat_history: 对话历史
+        chat_history: 对话历史（当前版本未使用，保留兼容）
 
     Yields:
         Server-Sent Events 格式的数据
     """
-    try:
-        # 1. 查询类型检测
-        query_info = detect_query_type(message)
-        yield StreamEvent.thinking("正在分析查询...", "detect")
-
-        # 2. 查询重写
-        rewrite_result = rewrite_query(message, chat_history)
-
-        if rewrite_result["changed"]:
-            yield StreamEvent.rewritten(
-                original=message,
-                rewritten=rewrite_result["rewritten"],
-                reason=rewrite_result["reason"]
-            )
-            message = rewrite_result["rewritten"]
-
-        # 3. 发送查询信息
-        yield json.dumps({
-            "type": "query_info",
-            "info": query_info
-        }, ensure_ascii=False) + "\n\n"
-
-        # 4. 思考状态
-        yield StreamEvent.thinking("正在识别意图...", "intent")
-
-        # 5. 配置
-        config = {
-            "configurable": {
-                "thread_id": session_id,
-                "user_id": user_id,
-            }
-        }
-
-        initial_state = create_initial_state(
-            user_input=message,
-            chat_history=chat_history or []
-        )
-
-        # 6. 执行工作流
-        current_intent = None
-        current_sql = None
-
-        async for event in agent_app.astream(
-            initial_state,
-            config=config,
-            stream_mode="updates",
-        ):
-            for node_name, node_output in event.items():
-                # 意图识别节点
-                if node_name == "intent_parser":
-                    current_intent = node_output.get("intent", "")
-                    yield StreamEvent.intent(current_intent)
-                    yield StreamEvent.thinking("正在生成查询...", "sql_gen")
-
-                # 指代消解节点
-                elif node_name == "resolve_input":
-                    resolved = node_output.get("resolved_input")
-                    if resolved and resolved != message:
-                        yield StreamEvent.thinking(f"已解析指代：{resolved}", "resolve")
-
-                # SQL 生成节点
-                elif node_name == "text_to_sql":
-                    current_sql = node_output.get("generated_sql", "")
-                    corrected = node_output.get("sql_corrected", False)
-                    yield StreamEvent.sql(current_sql, corrected)
-                    yield StreamEvent.thinking("正在执行查询...", "execute")
-
-                # 查询执行节点
-                elif node_name == "execute_query":
-                    if node_output.get("sql_error"):
-                        yield StreamEvent.error(node_output["sql_error"])
-                    else:
-                        data = node_output.get("sql_result", [])
-                        preview = data[:5] if data else []
-                        yield StreamEvent.query_result(len(data), preview)
-                        yield StreamEvent.thinking("正在生成回答...", "generate")
-
-                # 统计分析节点
-                elif node_name == "data_analysis":
-                    stats = node_output.get("stats_result", {})
-                    yield json.dumps({
-                        "type": "stats",
-                        "stats": stats
-                    }, ensure_ascii=False) + "\n\n"
-                    yield StreamEvent.thinking("正在生成回答...", "generate")
-
-                # RAG 知识检索节点
-                elif node_name == "knowledge_search":
-                    sources = node_output.get("rag_sources", [])
-                    if sources:
-                        yield StreamEvent.sources(sources)
-                    yield StreamEvent.thinking("正在生成回答...", "generate")
-
-                # 可视化节点
-                elif node_name == "visualization":
-                    chart_html = node_output.get("chart_html", "")
-                    chart_type = node_output.get("chart_type", "")
-                    yield json.dumps({
-                        "type": "visualization",
-                        "chart": chart_html,
-                        "chart_type": chart_type
-                    }, ensure_ascii=False) + "\n\n"
-
-                # 最终回答节点
-                elif node_name == "generate_answer":
-                    answer = node_output.get("final_answer", "")
-                    # 流式输出回答（模拟打字效果）
-                    for char in answer:
-                        yield StreamEvent.text(char)
-                        await asyncio.sleep(0.01)  # 打字效果
-
-                # 错误处理
-                elif node_output and "error_message" in node_output:
-                    yield StreamEvent.error(node_output["error_message"])
-
-        yield StreamEvent.done()
-
-    except Exception as e:
-        traceback.print_exc()
-        yield StreamEvent.error(f"处理请求时出错: {str(e)}")
-        yield StreamEvent.done()
+    # 使用两阶段工作流
+    async for event in two_stage_workflow.process(
+        message=message,
+        session_id=session_id,
+        user_id=user_id
+    ):
+        yield event
 
 
 # ========== API 端点 ==========

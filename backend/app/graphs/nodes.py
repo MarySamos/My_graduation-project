@@ -343,11 +343,11 @@ def data_analysis(state: AgentState) -> dict:
 请根据用户输入，选择最合适的工具并提供参数。
 
 返回 JSON 格式，例如：
-{{"tool": "get_basic_stats", "params": {{}}}}
+{{'tool': 'get_basic_stats', 'params': {{}}}}
 或
-{{"tool": "get_column_distribution", "params": {{"column_name": "job"}}}}
+{{'tool': 'get_column_distribution', 'params': {{'column_name': 'job'}}}}
 或
-{{"tool": "get_conversion_rate", "params": {{"group_by": "education"}}}}
+{{'tool': 'get_conversion_rate', 'params': {{'group_by': 'education'}}}}
 
 参数说明：
 - get_column_distribution 需要 column_name 参数

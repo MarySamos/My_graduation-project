@@ -40,8 +40,8 @@ const logs = ref([])
 const loadData = async () => {
   loading.value = true
   try {
-    const response = await api.get('/api/v1/admin/logs')
-    logs.value = response.data.logs || []
+    const response = await api.get('/api/v1/logs/list')
+    logs.value = Array.isArray(response.data) ? response.data : []
   } catch (error) {
     console.error('Failed to load logs:', error)
   } finally {

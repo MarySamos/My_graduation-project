@@ -15,23 +15,23 @@
     <section class="stats-overview">
       <div class="stat-card-mini animate-in">
         <div class="stat-label">总客户数</div>
-        <div class="stat-value">{{ stats.total_customers || '-' }}</div>
+          <div class="stat-value">{{ stats.kpi?.total_customers ?? '-' }}</div>
         <div class="stat-change positive">+12.5%</div>
       </div>
       <div class="stat-card-mini animate-in">
         <div class="stat-label">已转化</div>
-        <div class="stat-value">{{ stats.converted || '-' }}</div>
-        <div class="stat-change positive">转化率 {{ stats.conversion_rate || '-' }}%</div>
+          <div class="stat-value">{{ convertedCustomers }}</div>
+          <div class="stat-change positive">转化率 {{ stats.kpi?.conversion_rate ?? '-' }}%</div>
       </div>
       <div class="stat-card-mini animate-in">
         <div class="stat-label">平均余额</div>
-        <div class="stat-value">{{ stats.avg_balance || '-' }}</div>
+          <div class="stat-value">{{ stats.kpi?.avg_balance ?? '-' }}</div>
         <div class="stat-change">欧元</div>
       </div>
       <div class="stat-card-mini animate-in">
-        <div class="stat-label">平均年龄</div>
-        <div class="stat-value">{{ stats.avg_age || '-' }}</div>
-        <div class="stat-change">岁</div>
+        <div class="stat-label">平均营销次数</div>
+        <div class="stat-value">{{ stats.kpi?.avg_campaign ?? '-' }}</div>
+        <div class="stat-change">次</div>
       </div>
     </section>
 
@@ -58,12 +58,18 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue'
+import { computed, ref, onMounted, nextTick } from 'vue'
 import api from '../../api'
 import * as echarts from 'echarts'
 
 const loading = ref(false)
 const stats = ref({})
+const convertedCustomers = computed(() => {
+  const total = stats.value?.kpi?.total_customers
+  const rate = stats.value?.kpi?.conversion_rate
+  if (typeof total !== 'number' || typeof rate !== 'number') return '-'
+  return Math.round((total * rate) / 100)
+})
 
 const jobChartRef = ref(null)
 const maritalChartRef = ref(null)

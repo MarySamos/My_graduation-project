@@ -156,6 +156,23 @@ class AdminService:
         }
 
     @staticmethod
+    def delete_user(db: Session, user_id: int) -> dict:
+        """删除用户."""
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise ValueError(f"用户 ID {user_id} 不存在")
+
+        user_name = user.name
+        db.delete(user)
+        db.commit()
+
+        logger.info("用户 %s (ID=%s) 已删除", user_name, user_id)
+        return {
+            "message": f"用户 {user_name} 已删除",
+            "user_id": user_id,
+        }
+
+    @staticmethod
     def create_user_by_admin(
         db: Session,
         employee_id: str,
