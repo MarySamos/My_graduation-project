@@ -48,6 +48,30 @@
             <span class="nav-label">{{ item.label }}</span>
           </router-link>
         </template>
+
+        <!-- 管理功能菜单 - 仅管理员可见 -->
+        <template v-if="isAdmin" v-for="item in adminNavItems" :key="item.path">
+          <div class="nav-group">
+            <div class="nav-item nav-group-header" @click="toggleGroup(item.path)">
+              <component :is="item.icon" class="nav-icon" />
+              <span class="nav-label">{{ item.label }}</span>
+              <svg class="nav-arrow" :class="{ expanded: expandedGroups[item.path] }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </div>
+            <div v-show="expandedGroups[item.path]" class="nav-submenu">
+              <router-link
+                v-for="child in item.children"
+                :key="child.path"
+                :to="child.path"
+                class="nav-item nav-child"
+                :class="{ active: isActive(child.path) }"
+              >
+                <span class="nav-label">{{ child.label }}</span>
+              </router-link>
+            </div>
+          </div>
+        </template>
       </nav>
 
       <div class="sidebar-footer">
@@ -94,6 +118,8 @@ import {
   Grid,
   Promotion,
   Setting,
+  User,
+  Notebook,
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
@@ -101,10 +127,13 @@ const route = useRoute()
 
 const userName = ref('')
 const userRole = ref('')
+const isAdmin = ref(false)
+
 const expandedGroups = ref({
   '/analysis': true,
   '/data': false,
   '/knowledge': false,
+  '/admin': false,
 })
 
 const navItems = ref([
@@ -158,6 +187,19 @@ const navItems = ref([
   },
 ])
 
+// 管理功能菜单
+const adminNavItems = [
+  {
+    path: '/admin',
+    label: '系统管理',
+    icon: Setting,
+    children: [
+      { path: '/admin/users', label: '用户管理' },
+      { path: '/logs', label: '操作日志' },
+    ]
+  }
+]
+
 const isActive = (path) => route.path === path || route.path.startsWith(path + '/')
 
 const toggleGroup = (path) => {
@@ -178,6 +220,7 @@ onMounted(() => {
     const user = JSON.parse(userStr)
     userName.value = user.name
     userRole.value = user.role === 'admin' ? '管理员' : user.role === 'analyst' ? '分析师' : '普通用户'
+    isAdmin.value = user.role === 'admin'
   }
 })
 </script>
